@@ -1,0 +1,59 @@
+import pandas as pd
+import numpy as np
+import re
+import nltk
+import pickle
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.model_selection import train_test_split
+
+# Load dataset
+df = pd.read_csv("dataset/spam_data.csv")
+
+# Download stopwords & lemmatizer
+nltk.download('stopwords')
+nltk.download('wordnet')
+lemmatizer = WordNetLemmatizer()
+
+# Check if dataset is too small
+if len(df) < 5:
+    print("❌ ERROR: Dataset is too small! Add more spam and non-spam emails.")
+    exit()
+
+# Improved Preprocessing Function
+def preprocess_text(text):
+    text = text.lower()  # Convert to lowercase
+    text = re.sub(r"http\S+|www\S+|https\S+", "", text, flags=re.MULTILINE)  # Remove URLs
+    text = re.sub(r'\W', ' ', text)  # Remove special characters
+    text = re.sub(r'\d+', '', text)  # Remove numbers
+    text = ' '.join([lemmatizer.lemmatize(word) for word in text.split() if word not in stopwords.words('english')])
+    return text
+
+# Apply preprocessing
+df["Email Text"] = df["Email Text"].astype(str).apply(preprocess_text)
+
+# Convert labels (Spam → 1, Not Spam → 0)
+df["Label"] = df["Label"].map({"Spam": 1, "Not Spam": 0})
+
+# Check class balance
+print("\nClass Distribution:\n", df["Label"].value_counts())
+
+# Feature Extraction with Improved TF-IDF
+vectorizer = TfidfVectorizer(max_features=5000, ngram_range=(1, 2), stop_words='english')  
+X = vectorizer.fit_transform(df["Email Text"]).toarray()
+y = df["Label"]
+
+# Train-Test Split (NO stratify for small dataset)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+# Save Processed Data & Vectorizer for Future Use
+pickle.dump(vectorizer, open("model/vectorizer.pkl", "wb"))
+
+# Print Sample Processed Data
+print("\n✅ Sample Processed Emails:")
+print(df.head())
+
+print("\n✅ TF-IDF Feature Extraction Shape:", X.shape)
+print("\n✅ First 10 Features Extracted:")
+print(vectorizer.get_feature_names_out()[:10])
